@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8" />
+  <title>InstallForge</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; }
+    aside, section, pre { box-sizing: border-box; }
+    aside { width: 20%; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; }
+    section { width: 50%; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; }
+    pre { width: 30%; margin: 0; padding: 12px; overflow: auto; }
+    h2 { margin-top: 0; }
+    .tool { cursor: pointer; padding: 4px 0; }
+    .step { border: 1px solid #ccc; padding: 8px; margin-bottom: 8px; }
+    .step input { width: 100%; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <aside>
+    <h2>工具箱</h2>
+    <div id="tools"></div>
+  </aside>
+  <section>
+    <h2>步骤</h2>
+    <div id="steps"></div>
+    <button id="save">保存</button>
+    <button id="preview">预览</button>
+  </section>
+  <pre id="previewPane">选择项目后点击预览以生成 install.sh 片段。</pre>
+  <script>
+    const tools = [
+      {type:'mkdir', name:'mkdir'},
+      {type:'copy', name:'copy'},
+      {type:'extract_tar_gz', name:'extract tar.gz'},
+      {type:'append_lines', name:'append_lines'},
+      {type:'run_cmd', name:'run_cmd'},
+    ];
+    const projectId = null;
+    const stepContainer = document.getElementById('steps');
+    document.getElementById('tools').innerHTML = tools.map(t => `<div class="tool" data-type="${t.type}">${t.name}</div>`).join('');
+    const steps = [];
+    document.getElementById('tools').addEventListener('click', e => {
+      const type = e.target.getAttribute('data-type');
+      if(!type) return;
+      const id = crypto.randomUUID();
+      const card = document.createElement('div');
+      card.className='step';
+      card.innerHTML = `<strong>${type}</strong><br/>名称<input value="${type}" data-field="name"/><br/>配置(JSON)<textarea data-field="config" rows="4">{}</textarea>`;
+      card.dataset.id = id;
+      stepContainer.appendChild(card);
+      steps.push({id, name:type, type, config:{}});
+      card.querySelector('[data-field="name"]').addEventListener('input', ev => {
+        const step = steps.find(s => s.id===id); step.name = ev.target.value;
+      });
+      card.querySelector('[data-field="config"]').addEventListener('input', ev => {
+        const step = steps.find(s => s.id===id);
+        try { step.config = JSON.parse(ev.target.value || '{}'); card.style.borderColor='#ccc'; }
+        catch(err){ card.style.borderColor='red'; }
+      });
+    });
+
+    document.getElementById('preview').onclick = async () => {
+      const recipe = { schema_version:'1.0', project:{id:'demo', name:'demo', description:'', target:['oracle_linux_6_9','kylinsec_3_4']}, vars:{INSTALL_ROOT:'/opt/demo', LOG_DIR:'/var/log/asg'}, steps };
+      const res = await fetch('/api/projects/demo/generate', {method:'POST'});
+      if(res.ok){
+        const data = await res.json();
+        document.getElementById('previewPane').textContent = data.installSh || '没有数据';
+      } else {
+        document.getElementById('previewPane').textContent = '请先保存项目。';
+      }
+    };
+  </script>
+</body>
+</html>
